@@ -1,0 +1,91 @@
+{
+  "weeks": 18,
+  "players": [
+    {
+      "id": "i4ao3to",
+      "name": "Ricardo",
+      "picks": {
+        "1": "WSH"
+      },
+      "results": {}
+    },
+    {
+      "id": "tzsgewt",
+      "name": "Enrique",
+      "picks": {
+        "1": "DEN"
+      },
+      "results": {}
+    },
+    {
+      "id": "92rv2ke",
+      "name": "Eric",
+      "picks": {
+        "1": "PHI"
+      },
+      "results": {}
+    },
+    {
+      "id": "kj7vxyw",
+      "name": "Gio",
+      "picks": {
+        "1": "DET"
+      },
+      "results": {}
+    },
+    {
+      "id": "jcstyl3",
+      "name": "Carlos Mendez",
+      "picks": {
+        "1": "SEA"
+      },
+      "results": {}
+    },
+    {
+      "id": "xnoai58",
+      "name": "Freddie L.",
+      "picks": {
+        "1": "JAX"
+      },
+      "results": {}
+    },
+    {
+      "id": "k0fm57r",
+      "name": "Philip L.",
+      "picks": {
+        "1": "CIN"
+      },
+      "results": {}
+    },
+    {
+      "id": "9x2udsx",
+      "name": "Carlos Foster",
+      "picks": {
+        "1": "ARI"
+      },
+      "results": {}
+    },
+    {
+      "id": "pxtavc1",
+      "name": "Damien",
+      "picks": {
+        "1": "DEN"
+      },
+      "results": {}
+    },
+    {
+      "id": "7dix31g",
+      "name": "Thanh",
+      "picks": {
+        "1": "MIN"
+      },
+      "results": {}
+    }
+  ],
+  "pot": {
+    "entryFee": 20,
+    "entrants": 10,
+    "extra": 0
+  },
+  "lockThrough": 0
+}
