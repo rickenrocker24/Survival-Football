@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offline NFL Survivor Pool Tracker — 3 Strikes (Week Locks, 18 Weeks)</title>
+  <style>
+    :root{
+      --bg:#0f172a;/* slate-900 */
+      --panel:#111827;/* gray-900 */
+      --muted:#1f2937;/* gray-800 */
+      --text:#e5e7eb;/* gray-200 */
+      --accent:#22c55e;/* green-500 */
+      --warn:#f59e0b;/* amber-500 */
+      --danger:#ef4444;/* red-500 */
+      --blue:#60a5fa;/* blue-400 */
+      --violet:#a78bfa;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    h1{font-size:20px;margin:0}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+    .card{background:var(--panel);border:1px solid #1f2937;border-radius:14px;padding:12px}
+    input,select,button{background:#0b1220;border:1px solid #1f2937;color:var(--text);padding:8px 10px;border-radius:10px}
+    button.primary{background:var(--blue);border-color:#2563eb;color:#041022;font-weight:600}
+    button.ghost{background:transparent;border-color:#374151}
+    button.danger{background:var(--danger);border-color:#b91c1c;color:#2a0a0a;font-weight:600}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    table{width:100%;border-collapse:separate;border-spacing:0 6px}
+    th,td{padding:6px 8px;vertical-align:middle}
+    th{position:sticky;top:0;background:#0b1220;border-bottom:1px solid #263245;z-index:2}
+    tr.data-row{background:var(--panel);border:1px solid #1f2937}
+    tr.data-row td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
+    tr.data-row td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;background:#0b1220;border:1px solid #263245}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .dot.pending{background:var(--warn)}
+    .dot.won{background:var(--accent)}
+    .dot.lost{background:var(--danger)}
+    .help{font-size:12px;color:#a1a1aa}
+    .pill{display:inline-block;min-width:92px;padding:4px 10px;border-radius:999px;border:1px solid #263245;background:#0b1220;text-align:center}
+    .pill.violet{border-color:#3b3b5f;background:#14142a;color:#e9d5ff}
+    .row-actions{display:flex;gap:6px}
+    .strike{opacity:.55;filter:grayscale(.4)}
+    .scroll-x{overflow:auto}
+    .sticky-left{position:sticky;left:0;background:var(--panel);z-index:1}
+    .footer{margin-top:14px;display:flex;justify-content:space-between;align-items:center;color:#a1a1aa}
+    th.alive-col, td.alive-col{min-width:160px;white-space:nowrap;text-align:center}
+    .locked{opacity:.7;filter:saturate(.6)}
+    @media print{button,.toolbar,.footer,.help,.config{display:none!important} body{background:#fff;color:#000} .card, th{background:#fff;border-color:#ddd} .sticky-left{background:#fff}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar">
+      <h1>🏈 NFL Survivor – Offline Tracker (3 Strikes)</h1>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="card config" style="margin-bottom:12px">
+      <div class="toolbar" style="margin:0 0 10px 0;gap:8px;flex-wrap:wrap">
+        <div class="help">Season weeks fixed: <b>Week 1 → Week 18</b></div>
+        <div class="pill" id="lockStatus">Locked through: W0</div>
+        <div class="pill violet" id="leadersPill">Leaders: —</div>
+      </div>
+      <div class="toolbar" style="gap:8px;flex-wrap:wrap">
+        <input id="playerName" placeholder="Player name (e.g., Maria)" />
+        <button id="addPlayerBtn" class="primary">Add Player</button>
+        <button id="resetBtn" class="ghost" title="Reset everything">Reset</button>
+        <span class="help">Click a week cell to cycle result (Pending → Won → Lost). Double-click a player name to rename.</span>
+      </div>
+
+      <div class="toolbar" style="gap:14px;flex-wrap:wrap;margin-top:6px">
+        <div>
+          <label>Lock weeks through</label><br/>
+          <select id="lockThrough"></select>
+        </div>
+        <div>
+          <label>Unlock weeks through</label><br/>
+          <select id="unlockThrough"></select>
+        </div>
+        <div>
+          <label>Quick actions</label><br/>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button id="lockAllBtn" class="ghost">Lock all (1–18)</button>
+            <button id="unlockAllBtn" class="ghost">Unlock all (0)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar" style="gap:8px;flex-wrap:wrap;margin-top:6px">
+        <button id="exportJsonBtn">Export JSON</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none" />
+        <button id="importBtn" class="ghost">Import JSON</button>
+        <button id="exportCsvBtn">Export CSV</button>
+        <button id="printBtn" class="ghost">Print</button>
+      </div>
+
+      <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px">
+        <div>
+          <label>Entry Fee ($)</label><br/>
+          <input id="entryFee" type="number" min="0" step="1" oninput="updatePot()" />
+        </div>
+        <div>
+          <label>Entrants</label><br/>
+          <input id="entrants" type="number" min="0" step="1" oninput="updatePot()" />
+          <div class="help">Shows all teams every week; used teams are disabled.</div>
+        </div>
+        <div>
+          <label>Extra Pot ($)</label><br/>
+          <input id="potExtra" type="number" min="0" step="1" oninput="updatePot()" />
+        </div>
+        <div>
+          <label>Total Pot</label><br/>
+          <div class="pill" id="potTotal">$0</div>
+          <div class="help">Entry fee × entrants + extra</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card scroll-x">
+      <table id="table"></table>
+    </div>
+
+    <div class="footer">
+      <div>
+        <span class="badge"><span class="dot pending"></span> Pending</span>
+        <span class="badge" style="margin-left:8px"><span class="dot won"></span> Won</span>
+        <span class="badge" style="margin-left:8px"><span class="dot lost"></span> Lost</span>
+      </div>
+      <div class="help">Dropdown now shows ALL teams every week; teams this player already used are visible but disabled (labeled “(used)”). Locked weeks ignore clicks.</div>
+    </div>
+  </div>
+
+<script>
+// ---------- Data model ----------
+const TEAMS = [
+  {code:"ARI",name:"Arizona Cardinals"},{code:"ATL",name:"Atlanta Falcons"},{code:"BAL",name:"Baltimore Ravens"},{code:"BUF",name:"Buffalo Bills"},
+  {code:"CAR",name:"Carolina Panthers"},{code:"CHI",name:"Chicago Bears"},{code:"CIN",name:"Cincinnati Bengals"},{code:"CLE",name:"Cleveland Browns"},
+  {code:"DAL",name:"Dallas Cowboys"},{code:"DEN",name:"Denver Broncos"},{code:"DET",name:"Detroit Lions"},{code:"GB",name:"Green Bay Packers"},
+  {code:"HOU",name:"Houston Texans"},{code:"IND",name:"Indianapolis Colts"},{code:"JAX",name:"Jacksonville Jaguars"},{code:"KC",name:"Kansas City Chiefs"},
+  {code:"LV",name:"Las Vegas Raiders"},{code:"LAC",name:"Los Angeles Chargers"},{code:"LAR",name:"Los Angeles Rams"},{code:"MIA",name:"Miami Dolphins"},
+  {code:"MIN",name:"Minnesota Vikings"},{code:"NE",name:"New England Patriots"},{code:"NO",name:"New Orleans Saints"},{code:"NYG",name:"New York Giants"},
+  {code:"NYJ",name:"New York Jets"},{code:"PHI",name:"Philadelphia Eagles"},{code:"PIT",name:"Pittsburgh Steelers"},{code:"SF",name:"San Francisco 49ers"},
+  {code:"SEA",name:"Seattle Seahawks"},{code:"TB",name:"Tampa Bay Buccaneers"},{code:"TEN",name:"Tennessee Titans"},{code:"WSH",name:"Washington Commanders"}
+];
+
+const STORAGE_KEY = 'survivor_pool_v1';
+const STRIKE_LIMIT = 3;
+const FIXED_WEEKS = 18;
+
+let state = migrate(load()) || {weeks: FIXED_WEEKS, players: [], pot:{entryFee:0, entrants:0, extra:0}, lockThrough:0};
+
+// ---------- Utilities ----------
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)); }catch(e){ return null; } }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function usedTeamsFor(player){ return Object.values(player.picks||{}).filter(Boolean); }
+function lossesCount(player){ return Object.values(player.results||{}).filter(r=>r==='L').length; }
+function winsCount(player){ return Object.values(player.results||{}).filter(r=>r==='W').length; }
+function isEliminated(player){ return lossesCount(player) >= STRIKE_LIMIT; }
+function aliveCount(){ return state.players.filter(p=>!isEliminated(p)).length; }
+function money(n){ return `$${Number(n||0).toLocaleString()}`; }
+function isLockedWeek(week){ return Number(state.lockThrough||0) >= Number(week); }
+
+function migrate(s){
+  if(!s) return null;
+  s.weeks = FIXED_WEEKS;
+  (s.players||[]).forEach(p=>{ if(p.tiebreakers) delete p.tiebreakers; });
+  if(s.actualTB) delete s.actualTB;
+  if(typeof s.lockThrough!=='number') s.lockThrough=0;
+  s.pot = s.pot || {entryFee:0, entrants:(s.players?.length||0), extra:0};
+  return s;
+}
+
+// ---------- Pot tracking ----------
+function updatePot(){
+  const entry = Number(document.getElementById('entryFee').value)||0;
+  const entrants = Number(document.getElementById('entrants').value)||0;
+  const extra = Number(document.getElementById('potExtra').value)||0;
+  state.pot.entryFee = entry; state.pot.entrants = entrants; state.pot.extra = extra; save();
+  const total = entry*entrants + extra;
+  document.getElementById('potTotal').textContent = money(total);
+}
+function forceEntrantsFromPlayers(){
+  state.pot.entrants = state.players.length;
+  const el = document.getElementById('entrants');
+  if(el){ el.value = state.pot.entrants; }
+  updatePot();
+}
+
+// ---------- Leaderboard ----------
+function updateLeaders(){
+  const pill = document.getElementById('leadersPill');
+  if(!pill) return;
+  const alive = state.players.filter(p=>!isEliminated(p));
+  const pool = alive.length ? alive : state.players;
+  if(!pool.length){ pill.textContent = 'Leaders: —'; return; }
+  const scores = pool.map(p=>({name:p.name,w:winsCount(p)}));
+  const max = Math.max(...scores.map(s=>s.w));
+  const leaders = scores.filter(s=>s.w===max).map(s=>s.name);
+  if(max<=0){ pill.textContent = 'Leaders: —'; return; }
+  pill.textContent = (leaders.length===1) ? `Leader: ${leaders[0]} (${max})` : `Leaders: ${leaders.join(', ')} (${max})`;
+}
+
+// ---------- Lock selectors ----------
+let lockSel, unlockSel;
+function fillLockSelectors(){
+  lockSel = document.getElementById('lockThrough');
+  unlockSel = document.getElementById('unlockThrough');
+  const fill = (sel, includeNoneLabel)=>{
+    sel.innerHTML='';
+    const none = document.createElement('option'); none.value=0; none.textContent=includeNoneLabel ? 'None (0)' : 'None'; sel.appendChild(none);
+    for(let i=1;i<=FIXED_WEEKS;i++){ const o=document.createElement('option'); o.value=i; o.textContent=`Through W${i}`; sel.appendChild(o); }
+  };
+  fill(lockSel, false);
+  fill(unlockSel, true);
+  lockSel.value = String(state.lockThrough||0);
+  unlockSel.value = '0';
+  updateLockStatus();
+}
+
+// ---------- Team outcome helpers ----------
+function getTeamOutcome(week, team){
+  let hasW=false, hasL=false;
+  for(const p of state.players){
+    if(p.picks?.[week]===team){
+      const r = p.results?.[week];
+      if(r==='W') hasW=true;
+      if(r==='L') hasL=true;
+      if(hasW && hasL) return 'CONFLICT';
+    }
+  }
+  if(hasW) return 'W';
+  if(hasL) return 'L';
+  return null;
+}
+function applyTeamOutcome(week, team, outcome){
+  for(const p of state.players){
+    if(p.picks?.[week]===team){
+      if(!p.results) p.results={};
+      p.results[week] = outcome;
+    }
+  }
+}
+
+// ---------- Player actions ----------
+function addPlayer(){
+  const input = document.getElementById('playerName');
+  const name = (input?.value || '').trim();
+  if(!name) return;
+  state.players.push({id:uid(), name, picks:{}, results:{}});
+  input.value='';
+  forceEntrantsFromPlayers();
+  save(); renderAll();
+}
+function removePlayer(id){
+  if(!confirm('Delete this player and all their data?')) return;
+  state.players = state.players.filter(p=>p.id!==id);
+  forceEntrantsFromPlayers();
+  save(); renderAll();
+}
+function renamePlayer(id){
+  const p = state.players.find(x=>x.id===id);
+  if(!p) return;
+  const proposed = prompt('Edit player name:', p.name);
+  if(proposed===null) return;
+  const name = proposed.trim();
+  if(!name){ alert('Name cannot be empty.'); return; }
+  const dup = state.players.some(x=>x.id!==id && x.name.toLowerCase()===name.toLowerCase());
+  if(dup && !confirm('Another player already has this name. Keep duplicate anyway?')) return;
+  p.name = name;
+  save(); renderAll();
+}
+
+function setPick(playerId, week, team){
+  if(isLockedWeek(week)) return;
+  const p = state.players.find(x=>x.id===playerId);
+  if(!p) return;
+  const already = usedTeamsFor(p);
+  if(team && already.includes(team) && p.picks?.[week]!==team){
+    alert('This player already used '+team+'. Choose another team.');
+    render();
+    return;
+  }
+  if(!p.picks) p.picks={};
+  p.picks[week] = team || undefined;
+  if(team){
+    const outcome = getTeamOutcome(week, team);
+    if(outcome && outcome!=='CONFLICT'){
+      if(!p.results) p.results={};
+      p.results[week] = outcome;
+    }else{
+      if(p.results) delete p.results[week];
+    }
+  }else{
+    if(p.results) delete p.results[week];
+  }
+  save(); render();
+}
+function cycleResult(playerId, week){
+  if(isLockedWeek(week)) return;
+  const p = state.players.find(x=>x.id===playerId); if(!p) return;
+  const team = p.picks?.[week];
+  if(!team) return;
+  if(!p.results) p.results={};
+  const cur = p.results[week] || 'P';
+  const next = cur==='P' ? 'W' : cur==='W' ? 'L' : 'P';
+  if(next==='W' || next==='L'){
+    applyTeamOutcome(week, team, next);
+  }else{
+    p.results[week] = undefined;
+  }
+  save(); render();
+}
+
+// ---------- Reset & export ----------
+function clearAll(){
+  if(!confirm('This will erase all data. Continue?')) return;
+  state = {weeks: FIXED_WEEKS, players: [], pot:{entryFee:0, entrants:0, extra:0}, lockThrough:0};
+  save(); renderAll();
+}
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='survivor_pool.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+function exportCSV(){
+  const weeks = Array.from({length: FIXED_WEEKS}, (_,i)=>i+1);
+  const header = ['Player','Alive','Wins','Strikes',...weeks.map(w=>'W'+w)];
+  const rows = state.players.map(p=>{
+    const alive = isEliminated(p)?'No':'Yes';
+    const wins = winsCount(p);
+    const strikes = lossesCount(p);
+    const picks = weeks.map(w=>{
+      const t = p.picks?.[w] || '';
+      const r = p.results?.[w] || 'P';
+      return t ? `${t}(${r})` : '';
+    });
+    return [p.name, alive, wins, strikes, ...picks];
+  });
+  const csv = [header, ...rows].map(r=>r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='survivor_pool.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---------- Render ----------
+function render(){
+  const weeks = Array.from({length: FIXED_WEEKS}, (_,i)=>i+1);
+  const table = document.getElementById('table');
+  table.innerHTML='';
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  const hPlayer = document.createElement('th'); hPlayer.textContent='Player'; hPlayer.className='sticky-left'; hr.appendChild(hPlayer);
+  const hAlive = document.createElement('th'); hAlive.textContent='Status / Strikes'; hAlive.className='alive-col'; hr.appendChild(hAlive);
+  const hWins = document.createElement('th'); hWins.textContent='Wins'; hr.appendChild(hWins);
+  weeks.forEach(w=>{ 
+    const th=document.createElement('th'); 
+    const label = document.createElement('div'); label.textContent='W'+w; label.title='Week '+w; th.appendChild(label);
+    const sub = document.createElement('div'); sub.className='help'; sub.textContent = isLockedWeek(w)? 'Locked' : 'Editable'; th.appendChild(sub);
+    hr.appendChild(th); 
+  });
+  const hActions = document.createElement('th'); hActions.textContent='Actions'; hr.appendChild(hActions);
+  thead.appendChild(hr); table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  state.players.forEach(p=>{
+    const tr = document.createElement('tr'); tr.className='data-row';
+    const tdName = document.createElement('td'); tdName.className='sticky-left';
+    const nameBox = document.createElement('div');
+    const title = document.createElement('div'); title.textContent=p.name; title.style.fontWeight='600'; title.title='Double-click to rename';
+    title.ondblclick = ()=> renamePlayer(p.id);
+    const sub = document.createElement('div'); sub.className='help';
+    const used = usedTeamsFor(p); sub.textContent = used.length? ('Used: '+used.join(', ')) : 'No picks yet';
+    nameBox.appendChild(title); nameBox.appendChild(sub); tdName.appendChild(nameBox);
+    tr.appendChild(tdName);
+
+    const tdAlive = document.createElement('td'); tdAlive.className='alive-col';
+    const strikes = lossesCount(p);
+    const alive = strikes < STRIKE_LIMIT;
+    const pill = alive ? `✅ Alive` : `❌ Out`;
+    tdAlive.innerHTML = `<span class="pill">${pill}</span> <span class="help">(Strikes: ${strikes}/${STRIKE_LIMIT})</span>`;
+    tr.appendChild(tdAlive);
+
+    const tdWins = document.createElement('td'); tdWins.textContent = String(winsCount(p)); tr.appendChild(tdWins);
+
+    weeks.forEach(w=>{
+      const td = document.createElement('td');
+      const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.gap='6px';
+
+      const locked = isLockedWeek(w);
+
+      const sel = document.createElement('select'); sel.style.minWidth='110px'; sel.disabled = locked;
+      const opt0 = document.createElement('option'); opt0.value=''; opt0.textContent='—'; sel.appendChild(opt0);
+
+      const usedSet = new Set(usedTeamsFor(p).filter(t=>t!==p.picks?.[w]));
+      // SHOW ALL TEAMS; disable the ones already used (except current)
+      TEAMS.forEach(t=>{
+        const o = document.createElement('option'); 
+        o.value=t.code; 
+        o.textContent= usedSet.has(t.code) ? `${t.code} (used)` : t.code;
+        if(p.picks?.[w]===t.code) o.selected=true;
+        if(usedSet.has(t.code)) o.disabled = true;
+        sel.appendChild(o);
+      });
+      sel.onchange = e=> setPick(p.id, w, e.target.value);
+      wrap.appendChild(sel);
+
+      const dot = document.createElement('span'); dot.className='dot '+(p.results?.[w]==='W'?'won':p.results?.[w]==='L'?'lost':'pending');
+      dot.title = locked ? 'Locked' : 'Click cell to cycle result';
+      wrap.appendChild(dot);
+
+      if(locked){ td.classList.add('locked'); }
+      else { td.onclick = ()=> cycleResult(p.id, w); }
+
+      td.appendChild(wrap);
+      tr.appendChild(td);
+    });
+
+    const tdAct = document.createElement('td'); tdAct.className='row-actions';
+    const renameBtn = document.createElement('button'); renameBtn.textContent='Rename'; renameBtn.className='ghost'; renameBtn.onclick=()=>renamePlayer(p.id);
+    const del = document.createElement('button'); del.textContent='Delete'; del.className='danger'; del.onclick=()=>removePlayer(p.id);
+    tdAct.appendChild(renameBtn);
+    tdAct.appendChild(del);
+    tr.appendChild(tdAct);
+
+    if(isEliminated(p)) tr.classList.add('strike');
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+
+  // update selectors + status + leaders
+  if(lockSel) lockSel.value = String(state.lockThrough||0);
+  if(unlockSel) unlockSel.value = '0';
+  updateLockStatus();
+  updateLeaders();
+  document.title = `Survivor 3-Strikes — Players: ${state.players.length}, Alive: ${aliveCount()}, Lock: W${state.lockThrough||0}`;
+}
+
+// ---------- Locking actions ----------
+function setLockThrough(v){ state.lockThrough = +v || 0; save(); renderAll(); }
+function setUnlockThrough(v){
+  const val = Number(v)||0;
+  state.lockThrough = Math.min(state.lockThrough||0, val);
+  save();
+  renderAll();
+  if(unlockSel) unlockSel.value = '0';
+}
+function lockAllWeeks(){ state.lockThrough = FIXED_WEEKS; save(); renderAll(); }
+function unlockAllWeeks(){ state.lockThrough = 0; save(); renderAll(); }
+function updateLockStatus(){
+  const el = document.getElementById('lockStatus');
+  if(el){ el.textContent = 'Locked through: W' + (state.lockThrough||0); }
+}
+
+// ---------- Bootstrap & bindings ----------
+function bindUI(){
+  const addBtn = document.getElementById('addPlayerBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const lockAllBtn = document.getElementById('lockAllBtn');
+  const unlockAllBtn = document.getElementById('unlockAllBtn');
+  const impBtn = document.getElementById('importBtn');
+  const expJsonBtn = document.getElementById('exportJsonBtn');
+  const expCsvBtn = document.getElementById('exportCsvBtn');
+  const printBtn = document.getElementById('printBtn');
+
+  addBtn?.addEventListener('click', addPlayer);
+  resetBtn?.addEventListener('click', clearAll);
+  lockAllBtn?.addEventListener('click', lockAllWeeks);
+  unlockAllBtn?.addEventListener('click', unlockAllWeeks);
+  expJsonBtn?.addEventListener('click', exportJSON);
+  expCsvBtn?.addEventListener('click', exportCSV);
+  printBtn?.addEventListener('click', ()=>window.print());
+
+  const nameInput = document.getElementById('playerName');
+  nameInput?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ addPlayer(); }});
+
+  fillLockSelectors();
+  lockSel?.addEventListener('change', (e)=> setLockThrough(e.target.value));
+  unlockSel?.addEventListener('change', (e)=> setUnlockThrough(e.target.value));
+
+  const importFile = document.getElementById('importFile');
+  impBtn?.addEventListener('click', ()=> importFile?.click());
+  importFile?.addEventListener('change', async (e)=>{
+    const file = e.target.files[0]; if(!file) return; const txt = await file.text();
+    try{ const obj = JSON.parse(txt); if(!obj.players) throw new Error('Invalid file'); state = migrate(obj); save(); renderAll(); }
+    catch(err){ alert('Could not import: '+err.message); }
+    e.target.value='';
+  });
+
+  Object.assign(window, {
+    addPlayer, clearAll, lockAllWeeks, unlockAllWeeks,
+    setLockThrough, setUnlockThrough, exportJSON, exportCSV
+  });
+}
+
+function renderAll(){
+  fillLockSelectors();
+  document.getElementById('entryFee').value = state.pot?.entryFee || 0;
+  forceEntrantsFromPlayers();
+  document.getElementById('potExtra').value = state.pot?.extra || 0;
+  updatePot();
+  render();
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', ()=>{ bindUI(); renderAll(); });
+}else{
+  bindUI(); renderAll();
+}
+</script>
+</body>
+</html>
